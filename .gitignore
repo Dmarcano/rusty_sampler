@@ -1,0 +1,5 @@
+/target
+/output
+/apps/web-ui/node_modules
+/apps/web-ui/dist
+/apps/web-ui/src/wasm/pkg

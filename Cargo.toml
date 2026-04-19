@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/sampler-core", "crates/sampler-web-wasm"]
+resolver = "2"
