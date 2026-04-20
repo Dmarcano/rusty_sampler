@@ -19,21 +19,28 @@ impl SineOscillator {
     }
 }
 
+impl Iterator for SineOscillator {
+    type Item = i16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let amplitude = self.phase_radians.sin() * self.amplitude;
+        let pcm = (amplitude * i16::MAX as f32) // assuming that 16 bit depth is norm. need to update
+            .round()
+            .clamp(i16::MIN as f32, i16::MAX as f32);
+
+        self.phase_radians += self.phase_step_radians;
+
+        if self.phase_radians >= std::f32::consts::TAU {
+            self.phase_radians -= std::f32::consts::TAU;
+        }
+        Some(pcm as i16)
+    }
+}
+
 impl SampleSource for SineOscillator {
     fn fill_block(&mut self, out: &mut [i16]) {
-        for sample in out {
-            let amplitude = self.phase_radians.sin() * self.amplitude;
-            let pcm = (amplitude * i16::MAX as f32)
-                .round()
-                .clamp(i16::MIN as f32, i16::MAX as f32);
-
-            *sample = pcm as i16;
-
-            self.phase_radians += self.phase_step_radians;
-
-            if self.phase_radians >= std::f32::consts::TAU {
-                self.phase_radians -= std::f32::consts::TAU;
-            }
+        for (sample, pcm) in out.iter_mut().zip(self) {
+            *sample = pcm;
         }
     }
 }
