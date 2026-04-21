@@ -2,20 +2,37 @@ use crate::audio::{SampleSource, ToneSpec};
 
 pub struct SineOscillator {
     phase_radians: f32,
-    phase_step_radians: f32,
+    // phase_step_radians: f32,
     amplitude: f32,
+    frequency_hz: f32,
+    sample_rate: u32,
 }
 
 impl SineOscillator {
     pub fn new(spec: ToneSpec) -> Self {
-        let phase_step_radians =
-            std::f32::consts::TAU * spec.frequency_hz / spec.sample_rate as f32;
-
         Self {
             phase_radians: 0.0,
-            phase_step_radians,
+            // phase_step_radians,
             amplitude: spec.amplitude,
+            frequency_hz: spec.frequency_hz,
+            sample_rate: spec.sample_rate,
         }
+    }
+
+    fn phase_step_radians(&self) -> f32 {
+        std::f32::consts::TAU * self.frequency_hz / self.sample_rate as f32
+    }
+
+    pub fn set_frequency(&mut self, frequency_hz: f32) {
+        self.frequency_hz = frequency_hz;
+    }
+
+    pub fn set_amplitude(&mut self, amplitude: f32) {
+        self.amplitude = amplitude;
+    }
+
+    pub fn set_sample_rate(&mut self, sample_rate: u32) {
+        self.sample_rate = sample_rate;
     }
 }
 
@@ -28,7 +45,7 @@ impl Iterator for SineOscillator {
             .round()
             .clamp(i16::MIN as f32, i16::MAX as f32);
 
-        self.phase_radians += self.phase_step_radians;
+        self.phase_radians += self.phase_step_radians();
 
         if self.phase_radians >= std::f32::consts::TAU {
             self.phase_radians -= std::f32::consts::TAU;

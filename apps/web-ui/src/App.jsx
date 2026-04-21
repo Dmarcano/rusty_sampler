@@ -52,7 +52,7 @@ export default function App() {
     try {
       engineRef.current.set_frequency_hz(frequency);
       engineRef.current.set_amplitude(amplitude);
-      engineRef.current.play();
+      await engineRef.current.play();
 
       setIsPlaying(true);
       setStatus(
@@ -101,8 +101,8 @@ export default function App() {
         <p className="eyebrow">Rust + WASM + React</p>
         <h1>Rusty Sampler</h1>
         <p className="lede">
-          This first browser milestone keeps the UI in React while the audio engine lives in Rust
-          and compiles to WebAssembly.
+          This first browser milestone keeps the UI in React while the audio
+          engine lives in Rust and compiles to WebAssembly.
         </p>
 
         <div className="controls">
