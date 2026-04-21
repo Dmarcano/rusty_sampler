@@ -1,8 +1,7 @@
-use sampler_core::audio::{SampleSource, SineOscillator, ToneSpec};
+use sampler_core::audio::{SineOscillator, ToneSpec};
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{AudioContext, AudioWorkletNode, AudioWorkletNodeOptions};
+use web_sys::{AudioContext, AudioWorkletNode};
 
 #[wasm_bindgen]
 struct SineWorkletNode {
@@ -10,15 +9,20 @@ struct SineWorkletNode {
     connected: bool,
 }
 
-#[wasm_bindgen]
 impl SineWorkletNode {
-    pub fn new() -> Self {
-        let tone_spec = ToneSpec::default_a440();
+    pub fn new_with_spec(tone_spec: ToneSpec) -> Self {
         let oscillator = SineOscillator::new(tone_spec);
         Self {
             oscillator,
             connected: true,
         }
+    }
+}
+
+#[wasm_bindgen]
+impl SineWorkletNode {
+    pub fn new() -> Self {
+        Self::new_with_spec(ToneSpec::default_a440())
     }
 
     pub fn process(&mut self, buf: &mut [f32]) -> bool {
@@ -58,9 +62,6 @@ impl SineWorkletNode {
 #[wasm_bindgen]
 pub struct SamplerEngine {
     spec: ToneSpec,
-    audio_context: Option<AudioContext>,
-    node: Option<AudioWorkletNode>,
-    // oscillator: Option<SineOscillator>,
 }
 
 #[wasm_bindgen]
@@ -71,8 +72,6 @@ impl SamplerEngine {
 
         Self {
             spec: ToneSpec::default_a440(),
-            audio_context: None,
-            node: None,
         }
     }
 
@@ -94,10 +93,6 @@ impl SamplerEngine {
 
         self.spec.frequency_hz = value;
 
-        if let Some(node) = &mut self.node {
-            // TODO: update frequency_hz on node via some param
-        }
-
         Ok(())
     }
 
@@ -109,67 +104,15 @@ impl SamplerEngine {
 
         self.spec.amplitude = value;
 
-        if let Some(node) = &mut self.node {
-            // TODO: update amplitude on node via some param
-        }
-
         Ok(())
     }
 
     #[wasm_bindgen]
-    pub fn is_playing(&self) -> bool {
-        self.node.is_some()
-    }
-
-    #[wasm_bindgen]
-    pub async fn play(&mut self) -> Result<(), JsValue> {
-        if self.is_playing() {
-            return Ok(());
-        }
-
-        let context = match self.audio_context.take() {
-            Some(context) => context,
-            None => AudioContext::new()?,
-        };
-
-        let _ = context.resume()?;
-
-        // let oscillator = context.create_oscillator()?;
-        // oscillator.frequency().set_value(self.spec.frequency_hz);
-        // oscillator.set_type(OscillatorType::Sine);
-
-        prepare_wasm_audio(&context).await?;
-        let node = wasm_audio_node(&context)?;
-        node.connect_with_audio_node(&context.destination())?;
-
-        // let gain_node = context.create_gain()?;
-        // gain_node.gain().set_value(self.spec.amplitude);
-
-        // oscillator.connect_with_audio_node(&gain_node)?;
-        // gain_node.connect_with_audio_node(&context.destination())?;
-        // oscillator.start()?;
-
-        self.audio_context = Some(context);
-        self.node = Some(node);
-
-        // self.gain_node = Some(gain_node);
-        // self.oscillator = Some(oscillator);
-
-        Ok(())
-    }
-
-    #[wasm_bindgen]
-    pub fn stop(&mut self) -> Result<(), JsValue> {
-        if let Some(node) = self.node.take() {
-            // oscillator.stop()?;
-            node.disconnect()?;
-        }
-
-        // if let Some(gain_node) = self.gain_node.take() {
-        //     gain_node.disconnect()?;
-        // }
-
-        Ok(())
+    pub fn create_audio_worklet_node(
+        &self,
+        ctx: &AudioContext,
+    ) -> Result<AudioWorkletNode, JsValue> {
+        wasm_audio_node(ctx, self.spec)
     }
 }
 
@@ -220,9 +163,26 @@ export function createWorkletModuleUrl() {
         registerProcessor('SineWorkletNode', class SineWorkletNode extends AudioWorkletProcessor {
             constructor(options) {
                 super();
-                let [module, memory, handle] = options.processorOptions;
+                const processorOptions = options?.processorOptions;
+                if (!processorOptions) {
+                    throw new Error('Missing processorOptions in AudioWorkletProcessor constructor');
+                }
+                let [module, memory, handle] = processorOptions;
                 bindgen.initSync({ module, memory });
                 this.processor = bindgen.SineWorkletNode.unpack(handle);
+
+                this.port.onmessage = (event) => {
+                    const message = event.data ?? {};
+
+                    switch (message.type) {
+                        case 'setFrequency':
+                            this.processor.set_frequency_hz_inner(message.value);
+                            break;
+                        case 'setAmplitude':
+                            this.processor.set_amplitude_inner(message.value);
+                            break;
+                    }
+                };
             }
             process(inputs, outputs) {
                 return this.processor.process(outputs[0][0]);
@@ -230,23 +190,35 @@ export function createWorkletModuleUrl() {
         });
     `], { type: 'text/javascript' }));
 }
+
+export function createWorkletNode(ctx, module, memory, handle) {
+    return new AudioWorkletNode(ctx, 'SineWorkletNode', {
+        processorOptions: [module, memory, handle],
+    });
+}
 ")]
 extern "C" {
     fn createWorkletModuleUrl() -> String;
+    fn createWorkletNode(
+        ctx: &AudioContext,
+        module: JsValue,
+        memory: JsValue,
+        handle: JsValue,
+    ) -> AudioWorkletNode;
 }
 
-pub fn wasm_audio_node(ctx: &AudioContext) -> Result<AudioWorkletNode, JsValue> {
-    let options = AudioWorkletNodeOptions::new();
-    options.set_processor_options(Some(&js_sys::Array::of(&[
-        wasm_bindgen::module(),
-        wasm_bindgen::memory(),
-        SineWorkletNode::new().pack().into(),
-    ])));
-    AudioWorkletNode::new_with_options(ctx, "SineWorkletNode", &options)
+#[wasm_bindgen]
+pub fn create_worklet_module_url() -> String {
+    createWorkletModuleUrl()
 }
 
-pub async fn prepare_wasm_audio(ctx: &AudioContext) -> Result<(), JsValue> {
-    let mod_url = createWorkletModuleUrl();
-    JsFuture::from(ctx.audio_worklet()?.add_module(&mod_url)?).await?;
-    Ok(())
+pub fn wasm_audio_node(ctx: &AudioContext, spec: ToneSpec) -> Result<AudioWorkletNode, JsValue> {
+    let handle: JsValue = (SineWorkletNode::new_with_spec(spec).pack() as u32).into();
+
+    std::panic::catch_unwind(|| {
+        createWorkletNode(ctx, wasm_bindgen::module(), wasm_bindgen::memory(), handle)
+    })
+    .map_err(|_| {
+        JsValue::from_str("AudioWorkletNode construction panicked before returning a node")
+    })
 }
