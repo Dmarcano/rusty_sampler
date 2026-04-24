@@ -4,6 +4,8 @@
   "scripts": {
     "tone:render": "cargo run -p sampler-core --bin gen_tone -- --out output/a440.wav",
     "wasm:build": "./scripts/build-web-wasm-shared.sh",
+    "pages:build:prebuilt": "npm run web:install && npm run web:build",
+    "pages:build:source": "./scripts/build-cloudflare-pages.sh",
     "web:install": "npm --prefix apps/web-ui install",
     "web:setup": "npm run web:install && npm run wasm:build",
     "web:dev": "npm --prefix apps/web-ui run dev",
