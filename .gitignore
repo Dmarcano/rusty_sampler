@@ -2,4 +2,5 @@
 /output
 /apps/web-ui/node_modules
 /apps/web-ui/dist
-/apps/web-ui/src/wasm/pkg
+# for now I'll prepackage the wasm binary
+# /apps/web-ui/src/wasm/pkg

@@ -1,0 +1,15 @@
+{
+  "name": "sampler-web-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "sampler_web_wasm_bg.wasm",
+    "sampler_web_wasm.js",
+    "sampler_web_wasm.d.ts"
+  ],
+  "main": "sampler_web_wasm.js",
+  "types": "sampler_web_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
