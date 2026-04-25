@@ -1,5 +1,5 @@
 
-export function createWorkletModuleUrl() {
+function buildWorkletDebugInfo() {
     // This inline module is at: snippets/<crate>-<hash>/inline0.js
     // Main module is at: sampler_web_wasm.js (2 levels up)
     const bindgenUrl = new URL('../../sampler_web_wasm.js', import.meta.url).href;
@@ -31,7 +31,7 @@ export function createWorkletModuleUrl() {
         export function nop() {}
     `], { type: 'text/javascript' }));
 
-    return URL.createObjectURL(new Blob([`
+    const workletSource = `
         import '${polyfillUrl}';
         import * as bindgen from '${bindgenUrl}';
 
@@ -63,7 +63,22 @@ export function createWorkletModuleUrl() {
                 return this.processor.process(outputs[0][0]);
             }
         });
-    `], { type: 'text/javascript' }));
+    `;
+
+    return {
+        bindgenUrl,
+        polyfillUrl,
+        workletSource,
+    };
+}
+
+export function createWorkletModuleUrl() {
+    const info = buildWorkletDebugInfo();
+    return URL.createObjectURL(new Blob([info.workletSource], { type: 'text/javascript' }));
+}
+
+export function createWorkletDebugInfo() {
+    return buildWorkletDebugInfo();
 }
 
 export function createWorkletNode(ctx, module, memory, handle) {

@@ -25,6 +25,8 @@ export class SineWorkletNode {
     static unpack(val: number): SineWorkletNode;
 }
 
+export function create_worklet_debug_info(): any;
+
 export function create_worklet_module_url(): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -46,6 +48,7 @@ export interface InitOutput {
     readonly sineworkletnode_set_amplitude_inner: (a: number, b: number) => void;
     readonly sineworkletnode_set_frequency_hz_inner: (a: number, b: number) => void;
     readonly sineworkletnode_unpack: (a: number) => number;
+    readonly create_worklet_debug_info: () => any;
     readonly memory: WebAssembly.Memory;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

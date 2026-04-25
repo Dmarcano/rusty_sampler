@@ -4,6 +4,44 @@ import { loadSamplerModule } from "./wasm/loadSampler";
 
 const DEFAULT_FREQUENCY = 440;
 const DEFAULT_AMPLITUDE = 0.2;
+const DEFAULT_RETHROW = false;
+
+function formatErrorDetails(error) {
+  if (!error) {
+    return ["Unknown error"];
+  }
+
+  if (typeof error === "string") {
+    return [error];
+  }
+
+  const lines = [];
+  const name = error.name || error.constructor?.name;
+  const message = error.message || String(error);
+
+  lines.push(name ? `${name}: ${message}` : message);
+
+  if (error.stack) {
+    lines.push(...String(error.stack).split("\n").slice(1).map((line) => line.trim()));
+  }
+
+  if (error.cause) {
+    lines.push(`cause: ${String(error.cause)}`);
+  }
+
+  return lines;
+}
+
+function formatWorkletDebugInfo(debugInfo) {
+  if (!debugInfo || typeof debugInfo !== "object") {
+    return [];
+  }
+
+  return [
+    `bindgenUrl: ${debugInfo.bindgenUrl || "missing"}`,
+    `polyfillUrl: ${debugInfo.polyfillUrl || "missing"}`,
+  ];
+}
 
 export default function App() {
   const engineRef = useRef(null);
@@ -16,24 +54,33 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [status, setStatus] = useState("Loading Rust audio engine…");
   const [errorLog, setErrorLog] = useState([]);
+  const [rethrowErrors, setRethrowErrors] = useState(DEFAULT_RETHROW);
 
   useEffect(() => {
     let cancelled = false;
 
-    function pushError(source, message) {
-      setErrorLog((current) => [...current.slice(-7), `[${source}] ${message}`]);
+    function pushError(source, messageOrError) {
+      const lines = Array.isArray(messageOrError)
+        ? messageOrError
+        : formatErrorDetails(messageOrError);
+
+      setErrorLog((current) => {
+        const next = [...current];
+
+        for (const line of lines) {
+          next.push(`[${source}] ${line}`);
+        }
+
+        return next.slice(-20);
+      });
     }
 
     function onWindowError(event) {
-      pushError("window", event.message || "Unknown window error");
+      pushError("window", event.error || event.message || "Unknown window error");
     }
 
     function onUnhandledRejection(event) {
-      const reason =
-        typeof event.reason === "string"
-          ? event.reason
-          : event.reason?.message || String(event.reason);
-      pushError("promise", reason);
+      pushError("promise", event.reason);
     }
 
     window.addEventListener("error", onWindowError);
@@ -59,7 +106,7 @@ export default function App() {
       .catch((error) => {
         if (!cancelled) {
           setStatus(error.message);
-          pushError("boot", error.message);
+          pushError("boot", error);
         }
       });
 
@@ -104,8 +151,33 @@ export default function App() {
       return;
     }
 
+    const debugInfo = moduleRef.current.create_worklet_debug_info();
+    setErrorLog((current) => [
+      ...current,
+      ...formatWorkletDebugInfo(debugInfo).map((line) => `[worklet] ${line}`),
+    ].slice(-20));
+
+    if (debugInfo?.bindgenUrl) {
+      const response = await fetch(debugInfo.bindgenUrl);
+      setErrorLog((current) => [
+        ...current,
+        `[worklet] bindgen fetch: ${response.status} ${response.statusText}`,
+        `[worklet] bindgen content-type: ${response.headers.get("content-type") || "missing"}`,
+      ].slice(-20));
+    }
+
     const workletUrl = moduleRef.current.create_worklet_module_url();
-    await context.audioWorklet.addModule(workletUrl);
+    try {
+      await context.audioWorklet.addModule(workletUrl);
+    } catch (error) {
+      console.error("AudioWorklet addModule failed", {
+        error,
+        stack: error?.stack,
+        workletUrl,
+        debugInfo,
+      });
+      throw error;
+    }
     workletLoadedRef.current = true;
   }
 
@@ -135,7 +207,17 @@ export default function App() {
       );
     } catch (error) {
       setStatus(error.message);
-      setErrorLog((current) => [...current.slice(-7), `[play] ${error.message}`]);
+      setErrorLog((current) => [
+        ...current,
+        ...formatErrorDetails(error).map((line) => `[play] ${line}`),
+      ].slice(-20));
+      console.error("Playback failed", error);
+
+      if (rethrowErrors) {
+        setTimeout(() => {
+          throw error;
+        }, 0);
+      }
     }
   }
 
@@ -240,6 +322,16 @@ export default function App() {
             Stop
           </button>
         </div>
+
+        <label className="control">
+          <span>Debug Behavior</span>
+          <strong>{rethrowErrors ? "Rethrow enabled" : "Handled in panel"}</strong>
+          <input
+            type="checkbox"
+            checked={rethrowErrors}
+            onChange={(event) => setRethrowErrors(event.target.checked)}
+          />
+        </label>
 
         <p className="status">{status}</p>
 

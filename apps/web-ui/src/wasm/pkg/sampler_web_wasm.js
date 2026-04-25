@@ -1,6 +1,7 @@
 /* @ts-self-types="./sampler_web_wasm.d.ts" */
 import { createWorkletModuleUrl } from './snippets/sampler-web-wasm-56eb85e7a3a5eddd/inline0.js';
 import * as import1 from "./snippets/sampler-web-wasm-56eb85e7a3a5eddd/inline0.js"
+import * as import2 from "./snippets/sampler-web-wasm-56eb85e7a3a5eddd/inline0.js"
 
 
 export class SamplerEngine {
@@ -139,6 +140,14 @@ export class SineWorkletNode {
 if (Symbol.dispose) SineWorkletNode.prototype[Symbol.dispose] = SineWorkletNode.prototype.free;
 
 /**
+ * @returns {any}
+ */
+export function create_worklet_debug_info() {
+    const ret = wasm.create_worklet_debug_info();
+    return ret;
+}
+
+/**
  * @returns {string}
  */
 export function create_worklet_module_url() {
@@ -224,6 +233,7 @@ function __wbg_get_imports(memory) {
         __proto__: null,
         "./sampler_web_wasm_bg.js": import0,
         "./snippets/sampler-web-wasm-56eb85e7a3a5eddd/inline0.js": import1,
+        "./snippets/sampler-web-wasm-56eb85e7a3a5eddd/inline0.js": import2,
     };
 }
 

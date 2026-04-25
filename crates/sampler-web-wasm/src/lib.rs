@@ -124,7 +124,7 @@ impl Default for SamplerEngine {
 
 // taken from https://github.com/wasm-bindgen/wasm-bindgen/blob/main/examples/wasm-audio-worklet/src/wasm_audio.rs
 #[wasm_bindgen(inline_js = "
-export function createWorkletModuleUrl() {
+function buildWorkletDebugInfo() {
     // This inline module is at: snippets/<crate>-<hash>/inline0.js
     // Main module is at: sampler_web_wasm.js (2 levels up)
     const bindgenUrl = new URL('../../sampler_web_wasm.js', import.meta.url).href;
@@ -156,7 +156,7 @@ export function createWorkletModuleUrl() {
         export function nop() {}
     `], { type: 'text/javascript' }));
 
-    return URL.createObjectURL(new Blob([`
+    const workletSource = `
         import '${polyfillUrl}';
         import * as bindgen from '${bindgenUrl}';
 
@@ -188,7 +188,22 @@ export function createWorkletModuleUrl() {
                 return this.processor.process(outputs[0][0]);
             }
         });
-    `], { type: 'text/javascript' }));
+    `;
+
+    return {
+        bindgenUrl,
+        polyfillUrl,
+        workletSource,
+    };
+}
+
+export function createWorkletModuleUrl() {
+    const info = buildWorkletDebugInfo();
+    return URL.createObjectURL(new Blob([info.workletSource], { type: 'text/javascript' }));
+}
+
+export function createWorkletDebugInfo() {
+    return buildWorkletDebugInfo();
 }
 
 export function createWorkletNode(ctx, module, memory, handle) {
@@ -199,6 +214,7 @@ export function createWorkletNode(ctx, module, memory, handle) {
 ")]
 extern "C" {
     fn createWorkletModuleUrl() -> String;
+    fn createWorkletDebugInfo() -> JsValue;
     fn createWorkletNode(
         ctx: &AudioContext,
         module: JsValue,
@@ -210,6 +226,11 @@ extern "C" {
 #[wasm_bindgen]
 pub fn create_worklet_module_url() -> String {
     createWorkletModuleUrl()
+}
+
+#[wasm_bindgen]
+pub fn create_worklet_debug_info() -> JsValue {
+    createWorkletDebugInfo()
 }
 
 pub fn wasm_audio_node(ctx: &AudioContext, spec: ToneSpec) -> Result<AudioWorkletNode, JsValue> {

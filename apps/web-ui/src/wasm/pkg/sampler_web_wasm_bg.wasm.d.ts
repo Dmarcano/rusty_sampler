@@ -16,6 +16,7 @@ export const sineworkletnode_process: (a: number, b: number, c: number, d: any) 
 export const sineworkletnode_set_amplitude_inner: (a: number, b: number) => void;
 export const sineworkletnode_set_frequency_hz_inner: (a: number, b: number) => void;
 export const sineworkletnode_unpack: (a: number) => number;
+export const create_worklet_debug_info: () => any;
 export const memory: WebAssembly.Memory;
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
