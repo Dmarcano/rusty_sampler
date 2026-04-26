@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rusty Sampler UI Verifier"
+  short_description: "Run, rebuild, and smoke-test the local Rusty Sampler web UI"
+  default_prompt: "Run the rusty_sampler web UI, rebuild wasm only if needed, open the local browser, and verify the Play and Stop flow plus the debug panel before reporting regressions."

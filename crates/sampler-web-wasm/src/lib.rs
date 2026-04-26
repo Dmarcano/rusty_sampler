@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 use web_sys::{AudioContext, AudioWorkletNode};
 
 #[wasm_bindgen]
-struct SineWorkletNode {
+pub struct SineWorkletNode {
     oscillator: SineOscillator,
     connected: bool,
 }
