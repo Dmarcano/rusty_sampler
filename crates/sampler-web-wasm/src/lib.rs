@@ -5,7 +5,7 @@ use web_sys::{AudioContext, AudioWorkletNode};
 
 #[wasm_bindgen]
 pub struct SineWorkletNode {
-    oscillator: SineOscillator,
+    oscillator: SineOscillator<f32>,
     connected: bool,
 }
 
@@ -31,8 +31,8 @@ impl SineWorkletNode {
         }
 
         for (sample, pcm) in buf.iter_mut().zip(&mut self.oscillator) {
-            let normalized = (pcm as f32 / i16::MAX as f32).clamp(-1.0, 1.0);
-            *sample = normalized;
+            // let normalized = (pcm as f32 / i16::MAX as f32).clamp(-1.0, 1.0);
+            *sample = pcm;
         }
         true
     }
