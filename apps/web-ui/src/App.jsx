@@ -5,6 +5,9 @@ import { loadSamplerModule } from "./wasm/loadSampler";
 const DEFAULT_FREQUENCY = 440;
 const DEFAULT_AMPLITUDE = 0.2;
 const DEFAULT_RETHROW = false;
+const WAVEFORM_WIDTH = 560;
+const WAVEFORM_HEIGHT = 220;
+const WAVEFORM_SAMPLE_COUNT = 512;
 
 function formatErrorDetails(error) {
   if (!error) {
@@ -43,18 +46,92 @@ function formatWorkletDebugInfo(debugInfo) {
   ];
 }
 
+function drawWaveform(canvas, samples, frequency) {
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+  const midY = height / 2;
+  const horizontalPadding = 18;
+  const verticalPadding = 18;
+
+  context.clearRect(0, 0, width, height);
+
+  const glow = context.createLinearGradient(0, 0, width, height);
+  glow.addColorStop(0, "rgba(255, 202, 125, 0.18)");
+  glow.addColorStop(1, "rgba(255, 107, 61, 0.05)");
+  context.fillStyle = glow;
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(horizontalPadding, midY);
+  context.lineTo(width - horizontalPadding, midY);
+  context.stroke();
+
+  context.strokeStyle = "rgba(255, 180, 136, 0.22)";
+  context.beginPath();
+  for (let index = 0; index < 5; index += 1) {
+    const x = horizontalPadding + ((width - horizontalPadding * 2) * index) / 4;
+    context.moveTo(x, verticalPadding);
+    context.lineTo(x, height - verticalPadding);
+  }
+  context.stroke();
+
+  if (!samples.length) {
+    context.fillStyle = "rgba(247, 242, 234, 0.72)";
+    context.font = '14px "IBM Plex Mono", monospace';
+    context.fillText("Press play to stream samples from the worklet.", 20, midY);
+    return;
+  }
+
+  const usableWidth = width - horizontalPadding * 2;
+  const usableHeight = height - verticalPadding * 2;
+
+  context.strokeStyle = "#ffb66d";
+  context.lineWidth = 2.5;
+  context.beginPath();
+
+  samples.forEach((sample, index) => {
+    const x = horizontalPadding + (usableWidth * index) / Math.max(samples.length - 1, 1);
+    const y = midY - sample * (usableHeight / 2);
+
+    if (index === 0) {
+      context.moveTo(x, y);
+    } else {
+      context.lineTo(x, y);
+    }
+  });
+
+  context.stroke();
+
+  context.fillStyle = "rgba(247, 242, 234, 0.72)";
+  context.font = '13px "IBM Plex Mono", monospace';
+  context.fillText(`${samples.length} samples`, 20, 24);
+  context.fillText(`${frequency.toFixed(1)} Hz preview`, width - 176, 24);
+}
+
 export default function App() {
   const engineRef = useRef(null);
   const moduleRef = useRef(null);
   const audioContextRef = useRef(null);
   const workletNodeRef = useRef(null);
   const workletLoadedRef = useRef(false);
+  const waveformCanvasRef = useRef(null);
+  const waveformFrameRef = useRef(null);
+  const latestWaveformRef = useRef(new Float32Array(0));
   const [frequency, setFrequency] = useState(DEFAULT_FREQUENCY);
   const [amplitude, setAmplitude] = useState(DEFAULT_AMPLITUDE);
   const [isPlaying, setIsPlaying] = useState(false);
   const [status, setStatus] = useState("Loading Rust audio engine…");
   const [errorLog, setErrorLog] = useState([]);
   const [rethrowErrors, setRethrowErrors] = useState(DEFAULT_RETHROW);
+  const [waveformSummary, setWaveformSummary] = useState("Waiting for audio buffers…");
 
   useEffect(() => {
     let cancelled = false;
@@ -128,8 +205,43 @@ export default function App() {
         audioContextRef.current.close();
         audioContextRef.current = null;
       }
+
+      if (waveformFrameRef.current) {
+        cancelAnimationFrame(waveformFrameRef.current);
+        waveformFrameRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    const canvas = waveformCanvasRef.current;
+
+    if (!canvas) {
+      return undefined;
+    }
+
+    let mounted = true;
+
+    const render = () => {
+      if (!mounted) {
+        return;
+      }
+
+      drawWaveform(canvas, latestWaveformRef.current, frequency);
+      waveformFrameRef.current = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      mounted = false;
+
+      if (waveformFrameRef.current) {
+        cancelAnimationFrame(waveformFrameRef.current);
+        waveformFrameRef.current = null;
+      }
+    };
+  }, [frequency]);
 
   async function ensureAudioContext() {
     if (!audioContextRef.current) {
@@ -198,6 +310,20 @@ export default function App() {
       }
 
       const node = engineRef.current.create_audio_worklet_node(context);
+      node.port.onmessage = (event) => {
+        const message = event.data ?? {};
+
+        if (message.type !== "waveform" || !message.samples) {
+          return;
+        }
+
+        const preview = new Float32Array(message.samples);
+        const sampleCount = Math.min(preview.length, WAVEFORM_SAMPLE_COUNT);
+        latestWaveformRef.current = preview.slice(0, sampleCount);
+        setWaveformSummary(
+          `Showing ${sampleCount} streamed samples from the worklet render path.`,
+        );
+      };
       node.connect(context.destination);
       workletNodeRef.current = node;
 
@@ -229,6 +355,8 @@ export default function App() {
     try {
       workletNodeRef.current.disconnect();
       workletNodeRef.current = null;
+      latestWaveformRef.current = new Float32Array(0);
+      setWaveformSummary("Waiting for audio buffers…");
       setIsPlaying(false);
       setStatus("Stopped.");
     } catch (error) {
@@ -277,6 +405,19 @@ export default function App() {
           This first browser milestone keeps the UI in React while the audio
           engine lives in Rust and compiles to WebAssembly.
         </p>
+
+        <section className="scope-panel" aria-label="Signal preview">
+          <div className="scope-copy">
+            <p className="scope-label">Signal Scope</p>
+            <p className="scope-summary">{waveformSummary}</p>
+          </div>
+          <canvas
+            ref={waveformCanvasRef}
+            className="scope-canvas"
+            width={WAVEFORM_WIDTH}
+            height={WAVEFORM_HEIGHT}
+          />
+        </section>
 
         <div className="controls">
           <label className="control">

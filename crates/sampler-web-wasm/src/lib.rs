@@ -170,6 +170,7 @@ function buildWorkletDebugInfo() {
                 let [module, memory, handle] = processorOptions;
                 bindgen.initSync({ module, memory });
                 this.processor = bindgen.SineWorkletNode.unpack(handle);
+                this.previewStride = 0;
 
                 this.port.onmessage = (event) => {
                     const message = event.data ?? {};
@@ -185,7 +186,17 @@ function buildWorkletDebugInfo() {
                 };
             }
             process(inputs, outputs) {
-                return this.processor.process(outputs[0][0]);
+                const output = outputs[0][0];
+                const keepAlive = this.processor.process(output);
+
+                if ((this.previewStride++ % 6) === 0) {
+                    this.port.postMessage({
+                        type: 'waveform',
+                        samples: output.slice(),
+                    });
+                }
+
+                return keepAlive;
             }
         });
     `;
