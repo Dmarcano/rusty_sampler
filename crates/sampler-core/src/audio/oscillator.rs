@@ -1,6 +1,6 @@
 use crate::audio::{SampleSource, ToneSpec};
 use dasp_sample::Sample;
-use dasp_signal::Sine;
+use dasp_signal::{ConstHz, Sine};
 
 pub struct SineOscillator {
     phase_radians: f32,
@@ -8,16 +8,23 @@ pub struct SineOscillator {
     amplitude: f32,
     frequency_hz: f32,
     sample_rate: u32,
+    sine: dasp_signal::Sine<ConstHz>,
 }
 
 impl SineOscillator {
     pub fn new(spec: ToneSpec) -> Self {
+        let phase = std::f32::consts::TAU * spec.frequency_hz / spec.sample_rate as f32;
+        let mut sine = dasp_signal::rate(spec.sample_rate as f64)
+            .const_hz(spec.frequency_hz as f64)
+            .sine();
+
         Self {
             phase_radians: 0.0,
             // phase_step_radians,
             amplitude: spec.amplitude,
             frequency_hz: spec.frequency_hz,
             sample_rate: spec.sample_rate,
+            sine,
         }
     }
 
@@ -56,7 +63,7 @@ impl Iterator for SineOscillator {
     }
 }
 
-impl SampleSource for SineOscillator {
+impl SampleSource<i16> for SineOscillator {
     fn fill_block(&mut self, out: &mut [i16]) {
         for (sample, pcm) in out.iter_mut().zip(self) {
             *sample = pcm;

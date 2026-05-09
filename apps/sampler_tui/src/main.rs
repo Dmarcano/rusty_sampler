@@ -14,7 +14,7 @@ use ratatui::{
 };
 
 struct OscilatorWidget {
-    pub oscillator: Box<dyn SampleSource>,
+    pub oscillator: Box<dyn SampleSource<i16>>,
     pub tone_spec: ToneSpec,
 }
 

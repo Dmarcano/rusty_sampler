@@ -7,7 +7,7 @@ pub fn render_source_to_sink<S, K>(
     block_size: usize,
 ) -> Result<(), K::Error>
 where
-    S: SampleSource,
+    S: SampleSource<i16>,
     K: AudioSink,
 {
     let mut block = vec![0i16; block_size];
@@ -34,7 +34,7 @@ mod tests {
         next_sample: i16,
     }
 
-    impl SampleSource for CountingSource {
+    impl SampleSource<i16> for CountingSource {
         fn fill_block(&mut self, out: &mut [i16]) {
             for sample in out {
                 *sample = self.next_sample;
