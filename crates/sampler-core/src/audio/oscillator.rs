@@ -1,4 +1,6 @@
 use crate::audio::{SampleSource, ToneSpec};
+use dasp_sample::Sample;
+use dasp_signal::Sine;
 
 pub struct SineOscillator {
     phase_radians: f32,
