@@ -1,6 +1,18 @@
-use sampler_core::audio::{AudioSink, SampleSource, SineOscillator, ToneSpec};
+use rodio::buffer::SamplesBuffer;
+use rodio::{Decoder, MixerDeviceSink, source::Source};
+use sampler_core::audio::roland_tr_90::{bass::BT0A0A7, high_hat::HHCD2};
 
 use std::io;
+use std::num::NonZero;
+
+const SAMPLE_RATE: NonZero<u32> = match NonZero::new(44_100) {
+    Some(val) => val,
+    None => panic!("Value cannot be zero!"),
+};
+const CHANNELS: NonZero<u16> = match NonZero::new(1) {
+    Some(val) => val,
+    None => panic!("Value cannot be zero!"),
+};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
@@ -13,15 +25,24 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
-struct OscilatorWidget {
-    pub oscillator: Box<dyn SampleSource<i16>>,
-    pub tone_spec: ToneSpec,
+struct RolandPlayer {
+    bass: BT0A0A7,
+    high_hat: HHCD2,
 }
 
-#[derive(Debug, Default)]
+impl RolandPlayer {
+    pub fn new() -> Self {
+        let bass = BT0A0A7::new();
+        let high_hat = HHCD2::new();
+        Self { bass, high_hat }
+    }
+}
+
+#[derive(Debug)]
 pub struct App {
     counter: i8,
     exit: bool,
+    audio_sink: MixerDeviceSink,
 }
 
 impl App {
@@ -32,6 +53,17 @@ impl App {
             self.handle_events()?;
         }
         Ok(())
+    }
+
+    fn new() -> Self {
+        let counter = 0;
+        let exit = false;
+        let audio_sink = rodio::DeviceSinkBuilder::open_default_sink().unwrap();
+        Self {
+            counter,
+            exit,
+            audio_sink,
+        }
     }
 
     fn draw(&self, frame: &mut Frame) {
@@ -64,10 +96,18 @@ impl App {
     }
 
     fn increment_counter(&mut self) {
+        let player = RolandPlayer::new();
+        let samples = player.bass.samples();
+        let source = SamplesBuffer::new(CHANNELS, SAMPLE_RATE, samples);
+        self.audio_sink.mixer().add(source);
         self.counter += 1;
     }
 
     fn decrement_counter(&mut self) {
+        let player = RolandPlayer::new();
+        let samples = player.high_hat.samples();
+        let source = SamplesBuffer::new(CHANNELS, SAMPLE_RATE, samples);
+        self.audio_sink.mixer().add(source);
         self.counter -= 1;
     }
 }
@@ -76,10 +116,10 @@ impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(" Counter App Tutorial ".bold());
         let instructions = Line::from(vec![
-            " Decrement ".into(),
-            "<Left>".blue().bold(),
-            " Increment ".into(),
-            "<Right>".blue().bold(),
+            " Play ".into(),
+            "<Bass Tone>".blue().bold(),
+            " Play ".into(),
+            "<High Hat>".blue().bold(),
             " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
@@ -101,5 +141,5 @@ impl Widget for &App {
 }
 
 fn main() -> io::Result<()> {
-    ratatui::run(|terminal| App::default().run(terminal))
+    ratatui::run(|terminal| App::new().run(terminal))
 }

@@ -1,5 +1,6 @@
 mod oscillator;
 mod render;
+pub mod roland_tr_90;
 mod sink;
 mod source;
 mod spec;
