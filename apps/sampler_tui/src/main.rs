@@ -1,6 +1,7 @@
 use rodio::buffer::SamplesBuffer;
 use rodio::{Decoder, MixerDeviceSink, source::Source};
 use sampler_core::audio::roland_tr_90::{bass::BT0A0A7, high_hat::HHCD2};
+use sampler_core::engine::Track;
 
 use std::io;
 use std::num::NonZero;
@@ -43,6 +44,7 @@ pub struct App {
     counter: i8,
     exit: bool,
     audio_sink: MixerDeviceSink,
+    track: Track,
 }
 
 impl App {
@@ -59,10 +61,12 @@ impl App {
         let counter = 0;
         let exit = false;
         let audio_sink = rodio::DeviceSinkBuilder::open_default_sink().unwrap();
+        let track = Track::new();
         Self {
             counter,
             exit,
             audio_sink,
+            track,
         }
     }
 
